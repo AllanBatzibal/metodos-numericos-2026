@@ -29,6 +29,39 @@
     </p>
     <div class="formula-hero">xₙ₊₁ = xₙ - f(xₙ) / f'(xₙ)</div>
   </div>
+<div class="section-label">Procedimiento</div>
+
+  <div class="teoria-grid">
+
+    <div class="teoria-card">
+      <div class="teoria-num">01</div>
+      <div class="teoria-title">Elegir valor inicial x₀</div>
+      <div class="teoria-text">
+        Se elige un valor inicial x₀ cercano a la raíz. 
+        Entre más cerca esté, más rápido converge el método.
+      </div>
+    </div>
+
+    <div class="teoria-card">
+      <div class="teoria-num">02</div>
+      <div class="teoria-title">Calcular la tangente</div>
+      <div class="teoria-text">
+        Se evalúa f(xₙ) y f'(xₙ). La tangente en ese punto 
+        intersecta el eje X en el siguiente valor xₙ₊₁.
+      </div>
+    </div>
+
+    <div class="teoria-card">
+      <div class="teoria-num">03</div>
+      <div class="teoria-title">Verificar convergencia</div>
+      <div class="teoria-text">
+        Si |xₙ₊₁ - xₙ| es menor a la tolerancia, 
+        se encontró la raíz. De lo contrario se repite 
+        desde el paso 2.
+      </div>
+    </div>
+
+  </div>
 
 </body>
 </html>
