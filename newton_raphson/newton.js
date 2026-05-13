@@ -163,3 +163,77 @@ function drawFrame(steps, idx) {
   ctx.font = '11px Space Mono, monospace';
   ctx.fillText(`x = ${s.x1.toFixed(6)}`, tx(s.x1) + 14, ty(0) - 8);
 }
+
+// Función principal que se ejecuta al presionar el botón
+function run() {
+
+  // Detiene cualquier animación previa
+  if (timer) clearInterval(timer);
+
+  // Lee los valores del formulario
+  const fn    = document.getElementById('fn').value;
+  const x0    = parseFloat(document.getElementById('x0').value);
+  const tol   = parseFloat(document.getElementById('tol').value);
+  const maxIt = parseInt(document.getElementById('maxit').value);
+  const spd   = parseInt(document.getElementById('spd').value);
+
+  // Ejecuta el algoritmo y obtiene todas las iteraciones
+  const steps = compute(fn, x0, tol, maxIt);
+
+  // Si no hubo iteraciones, sale
+  if (steps.length === 0) return;
+
+  const last = steps[steps.length - 1];
+
+  // Muestra los resultados finales en las cajitas de estadísticas
+  document.getElementById('s-iter').textContent = last.i;
+  document.getElementById('s-root').textContent = last.x1.toFixed(6);
+  document.getElementById('s-err').textContent  = last.err.toFixed(6);
+
+  // Construye la tabla de iteraciones
+  const body = document.getElementById('itbody');
+  body.innerHTML = '';
+
+  steps.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'irow' + (i === steps.length - 1 ? ' done' : '');
+    row.id = 'row-' + i;
+    row.innerHTML = `
+      <span>${s.i}</span>
+      <span>${s.x.toFixed(5)}</span>
+      <span>${s.fx.toFixed(5)}</span>
+      <span>${s.x1.toFixed(6)}</span>
+      <span>${s.err.toFixed(6)}</span>
+    `;
+    body.appendChild(row);
+  });
+
+  // Inicia la animación frame por frame
+  let idx = 0;
+  const delay = Math.round(1200 / spd);
+
+  timer = setInterval(() => {
+
+    // Dibuja el frame actual
+    drawFrame(steps, idx);
+
+    // Actualiza el texto informativo debajo de la gráfica
+    const s = steps[idx];
+    document.getElementById('step-lbl').textContent =
+      `Iteración ${s.i}: xₙ=${s.x.toFixed(5)}, f(xₙ)=${s.fx.toFixed(5)}, xₙ₊₁=${s.x1.toFixed(6)}, Error=${s.err.toFixed(6)}`;
+
+    // Resalta la fila activa en la tabla
+    document.querySelectorAll('.irow:not(.hd)').forEach(r => r.classList.remove('active'));
+    const row = document.getElementById('row-' + idx);
+    if (row) {
+      row.classList.add('active');
+      row.scrollIntoView({ block: 'nearest' });
+    }
+
+    idx++;
+
+    // Detiene la animación al llegar a la última iteración
+    if (idx >= steps.length) clearInterval(timer);
+
+  }, delay);
+}
