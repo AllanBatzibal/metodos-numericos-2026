@@ -81,8 +81,8 @@ function drawFrame(steps, idx) {
   for (let px = 0; px <= 200; px++) {
     ys.push(evalF(fn, xMin + (px / 200) * (xMax - xMin)));
   }
-  const yMin = Math.min(...ys, 0) - 0.5;
-  const yMax = Math.max(...ys, 0) + 0.5;
+  const yMin = Math.min(...ys, 0) - 3;
+  const yMax = Math.max(...ys, 0) + 3;
 
   // Funciones para convertir coordenadas matemáticas a píxeles
   const tx = x => 40 + ((x - xMin) / (xMax - xMin)) * (W - 80);
