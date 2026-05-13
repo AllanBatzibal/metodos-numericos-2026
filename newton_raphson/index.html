@@ -63,5 +63,98 @@
 
   </div>
 
+  <div class="section-label">Calculadora interactiva</div>
+
+  <div class="main-grid">
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot"></div>
+        <span class="panel-title">Parámetros</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="field">
+          <label>Función f(x)</label>
+          <input type="text" id="fn" value="x^3 - x - 2" placeholder="ej. x^3 - x - 2">
+        </div>
+
+        <div class="field">
+          <label>Valor inicial x₀</label>
+          <input type="number" id="x0" value="2" step="0.1">
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Tolerancia</label>
+            <input type="number" id="tol" value="0.0001" step="0.00001">
+          </div>
+          <div class="field">
+            <label>Máx. iteraciones</label>
+            <input type="number" id="maxit" value="20" step="1">
+          </div>
+        </div>
+
+        <div class="speed-row">
+          <label>Velocidad</label>
+          <input type="range" min="1" max="10" value="5" step="1" id="spd"
+            oninput="document.getElementById('spdv').textContent=this.value">
+          <span class="speed-val" id="spdv">5</span>
+        </div>
+
+        <button class="btn-run" onclick="run()">&#9654; Animar Newton-Raphson</button>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-val" id="s-iter">—</div>
+            <div class="stat-lbl">Iteraciones</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val" id="s-root">—</div>
+            <div class="stat-lbl">Raíz</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val" id="s-err">—</div>
+            <div class="stat-lbl">Error final</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="right-col">
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="dot"></div>
+          <span class="panel-title">Gráfica animada</span>
+        </div>
+        <div class="panel-body" style="padding:16px">
+          <canvas id="cvs" height="280"></canvas>
+          <div class="step-label" id="step-lbl" style="margin-top:12px">
+            Configura los parámetros y presiona Animar.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel iter-table">
+        <div class="panel-header">
+          <div class="dot"></div>
+          <span class="panel-title">Tabla de iteraciones</span>
+        </div>
+        <div class="irow hd">
+          <span>#</span>
+          <span>xₙ</span>
+          <span>f(xₙ)</span>
+          <span>xₙ₊₁</span>
+          <span>Error</span>
+        </div>
+        <div class="iter-scroll" id="itbody"></div>
+      </div>
+
+    </div>
+
+  </div>
+
 </body>
 </html>
