@@ -73,16 +73,16 @@ function drawFrame(steps, idx) {
   // Calcula los límites del gráfico basado en todos los puntos
   const xs = steps.map(s => s.x);
   xs.push(steps[steps.length - 1].x1);
-  const xMin = Math.min(...xs) - 0.5;
-  const xMax = Math.max(...xs) + 0.5;
+  const xMin = Math.min(...xs) - 0.3;
+  const xMax = Math.max(...xs) + 0.3;
 
   // Evalúa varios puntos para saber el rango de Y
   let ys = [];
   for (let px = 0; px <= 200; px++) {
     ys.push(evalF(fn, xMin + (px / 200) * (xMax - xMin)));
   }
-  const yMin = Math.min(...ys, 0) - 1;
-  const yMax = Math.max(...ys, 0) + 2;
+  const yMin = Math.min(...ys, 0) - 0.5;
+  const yMax = Math.max(...ys, 0) + 0.5;
 
   // Funciones para convertir coordenadas matemáticas a píxeles
   const tx = x => 40 + ((x - xMin) / (xMax - xMin)) * (W - 80);
