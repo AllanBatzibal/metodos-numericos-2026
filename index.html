@@ -19,5 +19,68 @@
     </div>
   </nav>
 
+  <div class="hero">
+    <div class="hero-tag">&#9632; Universidad 2026</div>
+    <h1>Cálculo de raíces<br>de funciones</h1>
+    <p>
+      Explora dos métodos numéricos para encontrar raíces 
+      de funciones. Cada método incluye su fundamento teórico, 
+      procedimiento paso a paso y una calculadora interactiva 
+      con gráfica animada.
+    </p>
+    <div class="hero-badges">
+      <span class="badge badge-green">2 métodos</span>
+      <span class="badge badge-blue">Calculadoras interactivas</span>
+      <span class="badge badge-green">Gráficas animadas</span>
+      <span class="badge badge-blue">Tablas de iteraciones</span>
+    </div>
+  </div>
+  <div class="methods-grid">
+
+    <a href="biseccion/index.html" class="method-card card-green">
+      <div class="card-header">
+        <div class="card-num">01</div>
+        <div class="card-tag">Fácil de entender</div>
+      </div>
+      <h2>Bisección</h2>
+      <p>
+        Divide iterativamente un intervalo a la mitad para 
+        encontrar la raíz. Basado en el Teorema del Valor 
+        Intermedio.
+      </p>
+      <div class="card-formula">xm = (a + b) / 2</div>
+      <div class="card-features">
+        <span>&#10003; Siempre converge</span>
+        <span>&#10003; Fácil de implementar</span>
+        <span>&#10003; Convergencia lineal</span>
+      </div>
+      <div class="card-footer">
+        Ver método &#8594;
+      </div>
+    </a>
+
+    <a href="newton-raphson/index.html" class="method-card card-blue">
+      <div class="card-header">
+        <div class="card-num">02</div>
+        <div class="card-tag">Convergencia rápida</div>
+      </div>
+      <h2>Newton-Raphson</h2>
+      <p>
+        Usa la tangente de la curva para converger rápidamente 
+        hacia la raíz. Requiere la derivada f'(x) y tiene 
+        convergencia cuadrática.
+      </p>
+      <div class="card-formula">xₙ₊₁ = xₙ - f(xₙ) / f'(xₙ)</div>
+      <div class="card-features">
+        <span>&#10003; Muy rápido</span>
+        <span>&#10003; Convergencia cuadrática</span>
+        <span>&#10003; Derivada numérica</span>
+      </div>
+      <div class="card-footer">
+        Ver método &#8594;
+      </div>
+    </a>
+
+  </div>
 </body>
 </html>
