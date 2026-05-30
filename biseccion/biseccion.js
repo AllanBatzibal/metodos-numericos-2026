@@ -3,10 +3,6 @@ let timer = null;
 // Estado del modo paso a paso
 const stepMode = { active: false, idx: 0, steps: [], tol: 0 };
 
-// Historial de ejecuciones (máx. 10, persistido en localStorage)
-const HISTORY_KEY = 'biseccion_history';
-let history = [];
-
 function evalF(expr, x) {
   try {
     return math.evaluate(expr, { x });
@@ -341,7 +337,6 @@ function executeCalculation() {
   const last = steps[steps.length - 1];
   updateStats(last);
   buildTable(steps, tol);
-  addHistoryEntry({ fn, params: { a, b, tol }, root: last.xm, iterations: last.i, error: last.err });
 
   return { steps, tol, last };
 }
@@ -351,8 +346,21 @@ function run() {
   const result = executeCalculation();
   if (!result) return;
 
-  const { steps, tol } = result;
-  const { spd } = readParams();
+  const { steps, last } = result;
+  const { fn, spd } = readParams();
+
+  // Guardar en historial solo al animar
+  history.unshift({
+    id: Date.now(),
+    fn,
+    root: last.xm,
+    iterations: last.i,
+    date: formatHistoryDate(new Date())
+  });
+  if (history.length > HISTORY_MAX) history.pop();
+  saveHistory();
+  renderHistory();
+
   let idx = 0;
   const delay = Math.round(1200 / spd);
 
@@ -413,7 +421,17 @@ function resetStepMode() {
   updateNextButton();
 }
 
-// ——— Historial ———
+// ——— Historial (versión simplificada) ———
+
+const HISTORY_KEY = 'biseccion_history';
+const HISTORY_MAX = 8;
+let history = [];
+
+// Formato DD/MM/YYYY HH:MM
+function formatHistoryDate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function loadHistory() {
   try {
@@ -429,21 +447,6 @@ function saveHistory() {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 }
 
-function addHistoryEntry({ fn, params, root, iterations, error }) {
-  history.unshift({
-    id: Date.now(),
-    timestamp: new Date().toISOString(),
-    fn,
-    params,
-    root,
-    iterations,
-    error
-  });
-  if (history.length > 10) history.pop();
-  saveHistory();
-  renderHistory();
-}
-
 function renderHistory() {
   const list = document.getElementById('history-list');
   if (history.length === 0) {
@@ -452,31 +455,23 @@ function renderHistory() {
   }
 
   list.innerHTML = history.map(entry => `
-    <div class="history-card" data-id="${entry.id}">
-      <div class="history-card-body">
-        <span class="history-fn">${escapeHtml(entry.fn)}</span>
-        <span class="history-meta">Raíz: ${entry.root.toFixed(6)} · ${entry.iterations} iter · err ${entry.error.toFixed(6)}</span>
-      </div>
-      <div class="history-card-actions">
-        <button type="button" class="history-btn" onclick="reuseHistory(${entry.id})" title="Reusar">&#8634;</button>
-        <button type="button" class="history-btn history-btn-del" onclick="deleteHistory(${entry.id})" title="Eliminar">&#10005;</button>
-      </div>
+    <div class="history-row">
+      <span class="history-line">
+        <span class="history-mono">[ f(x) = ${escapeHtml(entry.fn)} ]</span>
+        <span class="history-label"> → </span>
+        <span class="history-mono">raíz: ${entry.root.toFixed(6)}</span>
+        <span class="history-label"> | </span>
+        <span class="history-mono">${entry.iterations} iter</span>
+        <span class="history-label"> | </span>
+        <span class="history-mono">${entry.date}</span>
+      </span>
+      <button type="button" class="history-del" onclick="deleteHistory(${entry.id})" aria-label="Eliminar">&#10005;</button>
     </div>
   `).join('');
 }
 
 function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function reuseHistory(id) {
-  const entry = history.find(h => h.id === id);
-  if (!entry) return;
-
-  document.getElementById('fn').value = entry.fn;
-  document.getElementById('a').value = entry.params.a;
-  document.getElementById('b').value = entry.params.b;
-  document.getElementById('tol').value = entry.params.tol;
 }
 
 function deleteHistory(id) {
