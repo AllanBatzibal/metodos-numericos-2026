@@ -1,8 +1,11 @@
-const script = document.createElement('script');
-script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.3/math.min.js';
-document.head.appendChild(script);
-
 let timer = null;
+
+// Estado del modo paso a paso
+const stepMode = { active: false, idx: 0, steps: [], tol: 0 };
+
+// Historial de ejecuciones (máx. 10, persistido en localStorage)
+const HISTORY_KEY = 'biseccion_history';
+let history = [];
 
 function evalF(expr, x) {
   try {
@@ -150,40 +153,139 @@ function drawFrame(steps, idx) {
   ctx.fillText(`xm = ${s.xm.toFixed(6)}`, tx(s.xm) + 14, ty(s.fm) - 8);
 }
 
-// Función principal que se ejecuta al presionar el botón
-function run() {
+// Calcula límites del gráfico para bisección
+function getBiseccionBounds(steps, fn) {
+  const span = steps[0].b - steps[0].a;
+  const xMin = steps[0].a - span * 0.4;
+  const xMax = steps[0].b + span * 0.4;
+  const ys = [];
+  for (let px = 0; px <= 200; px++) {
+    ys.push(evalF(fn, xMin + (px / 200) * (xMax - xMin)));
+  }
+  return { xMin, xMax, yMin: Math.min(...ys) - 1, yMax: Math.max(...ys) + 1 };
+}
 
-  // Detiene cualquier animación previa
-  if (timer) clearInterval(timer);
+// Dibuja la gráfica estática final con todas las iteraciones superpuestas
+function drawStaticFrame(steps) {
+  const cvs = document.getElementById('cvs');
+  const ctx = cvs.getContext('2d');
+  cvs.width = cvs.offsetWidth * 2;
+  cvs.height = 560;
+  const W = cvs.width;
+  const H = cvs.height;
+  const fn = document.getElementById('fn').value;
+  const last = steps[steps.length - 1];
+  const root = last.xm;
 
-  // Lee los valores del formulario
-  const fn  = document.getElementById('fn').value;
-  const a   = parseFloat(document.getElementById('a').value);
-  const b   = parseFloat(document.getElementById('b').value);
-  const tol = parseFloat(document.getElementById('tol').value);
-  const spd = parseInt(document.getElementById('spd').value);
+  ctx.clearRect(0, 0, W, H);
 
-  // Valida que f(a) y f(b) tengan signos opuestos
+  const { xMin, xMax, yMin, yMax } = getBiseccionBounds(steps, fn);
+  const tx = x => 40 + ((x - xMin) / (xMax - xMin)) * (W - 80);
+  const ty = y => 20 + ((yMax - y) / (yMax - yMin)) * (H - 40);
+
+  // Grilla y ejes
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let gx = Math.ceil(xMin); gx <= xMax; gx++) {
+    ctx.beginPath();
+    ctx.moveTo(tx(gx), 20);
+    ctx.lineTo(tx(gx), H - 20);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  if (0 >= yMin && 0 <= yMax) {
+    ctx.beginPath();
+    ctx.moveTo(40, ty(0));
+    ctx.lineTo(W - 40, ty(0));
+    ctx.stroke();
+  }
+  if (0 >= xMin && 0 <= xMax) {
+    ctx.beginPath();
+    ctx.moveTo(tx(0), 20);
+    ctx.lineTo(tx(0), H - 20);
+    ctx.stroke();
+  }
+
+  // Todas las bandas [a,b] con opacidad decreciente
+  const n = steps.length;
+  steps.forEach((s, j) => {
+    const alpha = 0.05 + 0.1 * ((j + 1) / n);
+    ctx.fillStyle = `rgba(0,229,160,${alpha})`;
+    ctx.fillRect(tx(s.a), 20, tx(s.b) - tx(s.a), H - 40);
+  });
+
+  // Curva de la función
+  ctx.strokeStyle = '#00e5a0';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let px = 0; px <= W - 80; px++) {
+    const x = xMin + (px / (W - 80)) * (xMax - xMin);
+    const y = evalF(fn, x);
+    if (isNaN(y)) continue;
+    px === 0 ? ctx.moveTo(40 + px, ty(y)) : ctx.lineTo(40 + px, ty(y));
+  }
+  ctx.stroke();
+
+  // Puntos medios de cada iteración en tono tenue
+  steps.forEach((s, j) => {
+    if (j === n - 1) return;
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#0077ff';
+    ctx.beginPath();
+    ctx.arc(tx(s.xm), ty(s.fm), 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // Raíz final destacada
+  ctx.fillStyle = '#ff4d6d';
+  ctx.beginPath();
+  ctx.arc(tx(root), ty(0), 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  const label = `Raíz ≈ ${root.toFixed(6)}`;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(tx(root) + 12, ty(0) - 28, 160, 20);
+  ctx.fillStyle = '#ff4d6d';
+  ctx.font = 'bold 12px Space Mono, monospace';
+  ctx.fillText(label, tx(root) + 16, ty(0) - 14);
+}
+
+// Lee parámetros del formulario
+function readParams() {
+  return {
+    fn: document.getElementById('fn').value,
+    a: parseFloat(document.getElementById('a').value),
+    b: parseFloat(document.getElementById('b').value),
+    tol: parseFloat(document.getElementById('tol').value),
+    spd: parseInt(document.getElementById('spd').value, 10)
+  };
+}
+
+// Valida signos opuestos en f(a) y f(b)
+function validateInterval(fn, a, b) {
   if (evalF(fn, a) * evalF(fn, b) >= 0) {
     document.getElementById('step-lbl').textContent =
       'Error: f(a) y f(b) deben tener signos opuestos.';
-    return;
+    return false;
   }
+  return true;
+}
 
-  // Ejecuta el algoritmo y obtiene todas las iteraciones
-  const steps = compute(fn, a, b, tol);
-  const last  = steps[steps.length - 1];
-
-  // Muestra los resultados finales en las cajitas de estadísticas
+// Actualiza estadísticas finales
+function updateStats(last) {
   document.getElementById('s-iter').textContent = last.i;
   document.getElementById('s-root').textContent = last.xm.toFixed(6);
-  document.getElementById('s-err').textContent  = last.err.toFixed(6);
+  document.getElementById('s-err').textContent = last.err.toFixed(6);
+}
 
-  // Construye la tabla de iteraciones
+// Construye la tabla de iteraciones con columna f(xm)
+function buildTable(steps, tol) {
   const body = document.getElementById('itbody');
   body.innerHTML = '';
 
   steps.forEach((s, i) => {
+    const isRoot = Math.abs(s.fm) < tol;
     const row = document.createElement('div');
     row.className = 'irow' + (i === steps.length - 1 ? ' done' : '');
     row.id = 'row-' + i;
@@ -192,37 +294,195 @@ function run() {
       <span>${s.a.toFixed(5)}</span>
       <span>${s.b.toFixed(5)}</span>
       <span>${s.xm.toFixed(6)}</span>
+      <span class="${isRoot ? 'cell-root' : ''}">${s.fm.toFixed(6)}</span>
       <span>${s.err.toFixed(6)}</span>
     `;
     body.appendChild(row);
   });
+}
 
-  // Inicia la animación frame por frame
+// Resalta la fila activa en la tabla
+function highlightRow(idx, steps) {
+  document.querySelectorAll('.irow:not(.hd)').forEach(r => r.classList.remove('active'));
+  const row = document.getElementById('row-' + idx);
+  if (row) {
+    row.classList.add('active');
+    row.scrollIntoView({ block: 'nearest' });
+  }
+  const s = steps[idx];
+  document.getElementById('step-lbl').textContent =
+    `Iteración ${s.i}: a=${s.a.toFixed(5)}, b=${s.b.toFixed(5)}, xm=${s.xm.toFixed(6)}, f(xm)=${s.fm.toFixed(6)}, Error=${s.err.toFixed(6)}`;
+}
+
+// Detiene animación y resetea modo paso a paso
+function stopAnimation() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  stepMode.active = false;
+  document.getElementById('step-controls').hidden = true;
+}
+
+// Actualiza estado del botón "Siguiente paso"
+function updateNextButton() {
+  const btn = document.getElementById('btn-next');
+  const atEnd = stepMode.idx >= stepMode.steps.length - 1;
+  btn.disabled = atEnd;
+}
+
+// Ejecuta el cálculo y prepara resultados compartidos
+function executeCalculation() {
+  stopAnimation();
+  const { fn, a, b, tol } = readParams();
+  if (!validateInterval(fn, a, b)) return null;
+
+  const steps = compute(fn, a, b, tol);
+  if (steps.length === 0) return null;
+
+  const last = steps[steps.length - 1];
+  updateStats(last);
+  buildTable(steps, tol);
+  addHistoryEntry({ fn, params: { a, b, tol }, root: last.xm, iterations: last.i, error: last.err });
+
+  return { steps, tol, last };
+}
+
+// Función principal — animación automática
+function run() {
+  const result = executeCalculation();
+  if (!result) return;
+
+  const { steps, tol } = result;
+  const { spd } = readParams();
   let idx = 0;
   const delay = Math.round(1200 / spd);
 
+  drawFrame(steps, 0);
+  highlightRow(0, steps);
+
   timer = setInterval(() => {
-
-    // Dibuja el frame actual
-    drawFrame(steps, idx);
-
-    // Actualiza el texto informativo debajo de la gráfica
-    const s = steps[idx];
-    document.getElementById('step-lbl').textContent =
-      `Iteración ${s.i}: a=${s.a.toFixed(5)}, b=${s.b.toFixed(5)}, xm=${s.xm.toFixed(6)}, Error=${s.err.toFixed(6)}`;
-
-    // Resalta la fila activa en la tabla
-    document.querySelectorAll('.irow:not(.hd)').forEach(r => r.classList.remove('active'));
-    const row = document.getElementById('row-' + idx);
-    if (row) {
-      row.classList.add('active');
-      row.scrollIntoView({ block: 'nearest' });
-    }
-
     idx++;
-
-    // Detiene la animación al llegar a la última iteración
-    if (idx >= steps.length) clearInterval(timer);
-
+    if (idx >= steps.length) {
+      drawStaticFrame(steps);
+      highlightRow(steps.length - 1, steps);
+      clearInterval(timer);
+      timer = null;
+      return;
+    }
+    drawFrame(steps, idx);
+    highlightRow(idx, steps);
   }, delay);
-}x
+}
+
+// Modo paso a paso
+function runStepMode() {
+  const result = executeCalculation();
+  if (!result) return;
+
+  stepMode.active = true;
+  stepMode.idx = 0;
+  stepMode.steps = result.steps;
+  stepMode.tol = result.tol;
+
+  document.getElementById('step-controls').hidden = false;
+  updateNextButton();
+  drawFrame(stepMode.steps, 0);
+  highlightRow(0, stepMode.steps);
+}
+
+function nextStep() {
+  if (!stepMode.active || stepMode.idx >= stepMode.steps.length - 1) return;
+
+  stepMode.idx++;
+  const atEnd = stepMode.idx >= stepMode.steps.length - 1;
+
+  if (atEnd) {
+    drawStaticFrame(stepMode.steps);
+  } else {
+    drawFrame(stepMode.steps, stepMode.idx);
+  }
+  highlightRow(stepMode.idx, stepMode.steps);
+  updateNextButton();
+}
+
+function resetStepMode() {
+  if (!stepMode.active || stepMode.steps.length === 0) return;
+
+  stepMode.idx = 0;
+  drawFrame(stepMode.steps, 0);
+  highlightRow(0, stepMode.steps);
+  updateNextButton();
+}
+
+// ——— Historial ———
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    history = raw ? JSON.parse(raw) : [];
+  } catch {
+    history = [];
+  }
+  renderHistory();
+}
+
+function saveHistory() {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+function addHistoryEntry({ fn, params, root, iterations, error }) {
+  history.unshift({
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    fn,
+    params,
+    root,
+    iterations,
+    error
+  });
+  if (history.length > 10) history.pop();
+  saveHistory();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (history.length === 0) {
+    list.innerHTML = '<p class="history-empty">Sin ejecuciones previas.</p>';
+    return;
+  }
+
+  list.innerHTML = history.map(entry => `
+    <div class="history-card" data-id="${entry.id}">
+      <div class="history-card-body">
+        <span class="history-fn">${escapeHtml(entry.fn)}</span>
+        <span class="history-meta">Raíz: ${entry.root.toFixed(6)} · ${entry.iterations} iter · err ${entry.error.toFixed(6)}</span>
+      </div>
+      <div class="history-card-actions">
+        <button type="button" class="history-btn" onclick="reuseHistory(${entry.id})" title="Reusar">&#8634;</button>
+        <button type="button" class="history-btn history-btn-del" onclick="deleteHistory(${entry.id})" title="Eliminar">&#10005;</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function reuseHistory(id) {
+  const entry = history.find(h => h.id === id);
+  if (!entry) return;
+
+  document.getElementById('fn').value = entry.fn;
+  document.getElementById('a').value = entry.params.a;
+  document.getElementById('b').value = entry.params.b;
+  document.getElementById('tol').value = entry.params.tol;
+}
+
+function deleteHistory(id) {
+  history = history.filter(h => h.id !== id);
+  saveHistory();
+  renderHistory();
+}
+
+document.addEventListener('DOMContentLoaded', loadHistory);

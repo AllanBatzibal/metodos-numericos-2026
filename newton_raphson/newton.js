@@ -1,10 +1,12 @@
-// Librería math.js para evaluar funciones escritas por el usuario
-const script = document.createElement('script');
-script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.3/math.min.js';
-document.head.appendChild(script);
-
 // Variable global para controlar la animación
 let timer = null;
+
+// Estado del modo paso a paso
+const stepMode = { active: false, idx: 0, steps: [] };
+
+// Historial de ejecuciones (máx. 10, persistido en localStorage)
+const HISTORY_KEY = 'newton_history';
+let history = [];
 
 // Evalúa la función f(x) ingresada por el usuario
 function evalF(expr, x) {
@@ -164,33 +166,136 @@ function drawFrame(steps, idx) {
   ctx.fillText(`x = ${s.x1.toFixed(6)}`, tx(s.x1) + 14, ty(0) - 8);
 }
 
-// Función principal que se ejecuta al presionar el botón
-function run() {
+// Calcula límites del gráfico para Newton-Raphson
+function getNewtonBounds(steps, fn) {
+  const xs = steps.map(s => s.x);
+  xs.push(steps[steps.length - 1].x1);
+  const xMin = Math.min(...xs) - 0.3;
+  const xMax = Math.max(...xs) + 0.3;
+  const ys = [];
+  for (let px = 0; px <= 200; px++) {
+    ys.push(evalF(fn, xMin + (px / 200) * (xMax - xMin)));
+  }
+  return { xMin, xMax, yMin: Math.min(...ys, 0) - 3, yMax: Math.max(...ys, 0) + 3 };
+}
 
-  // Detiene cualquier animación previa
-  if (timer) clearInterval(timer);
-
-  // Lee los valores del formulario
-  const fn    = document.getElementById('fn').value;
-  const x0    = parseFloat(document.getElementById('x0').value);
-  const tol   = parseFloat(document.getElementById('tol').value);
-  const maxIt = parseInt(document.getElementById('maxit').value);
-  const spd   = parseInt(document.getElementById('spd').value);
-
-  // Ejecuta el algoritmo y obtiene todas las iteraciones
-  const steps = compute(fn, x0, tol, maxIt);
-
-  // Si no hubo iteraciones, sale
-  if (steps.length === 0) return;
-
+// Dibuja la gráfica estática final con todas las tangentes superpuestas
+function drawStaticFrame(steps) {
+  const cvs = document.getElementById('cvs');
+  const ctx = cvs.getContext('2d');
+  cvs.width = cvs.offsetWidth * 2;
+  cvs.height = 560;
+  const W = cvs.width;
+  const H = cvs.height;
+  const fn = document.getElementById('fn').value;
   const last = steps[steps.length - 1];
+  const root = last.x1;
 
-  // Muestra los resultados finales en las cajitas de estadísticas
+  ctx.clearRect(0, 0, W, H);
+
+  const { xMin, xMax, yMin, yMax } = getNewtonBounds(steps, fn);
+  const tx = x => 40 + ((x - xMin) / (xMax - xMin)) * (W - 80);
+  const ty = y => 20 + ((yMax - y) / (yMax - yMin)) * (H - 40);
+
+  // Grilla y ejes
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let gx = Math.ceil(xMin); gx <= xMax; gx++) {
+    ctx.beginPath();
+    ctx.moveTo(tx(gx), 20);
+    ctx.lineTo(tx(gx), H - 20);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  if (0 >= yMin && 0 <= yMax) {
+    ctx.beginPath();
+    ctx.moveTo(40, ty(0));
+    ctx.lineTo(W - 40, ty(0));
+    ctx.stroke();
+  }
+  if (0 >= xMin && 0 <= xMax) {
+    ctx.beginPath();
+    ctx.moveTo(tx(0), 20);
+    ctx.lineTo(tx(0), H - 20);
+    ctx.stroke();
+  }
+
+  // Curva de la función
+  ctx.strokeStyle = '#0077ff';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let px = 0; px <= W - 80; px++) {
+    const x = xMin + (px / (W - 80)) * (xMax - xMin);
+    const y = evalF(fn, x);
+    if (isNaN(y)) continue;
+    px === 0 ? ctx.moveTo(40 + px, ty(y)) : ctx.lineTo(40 + px, ty(y));
+  }
+  ctx.stroke();
+
+  // Tangentes anteriores en lila tenue (opacity ~0.15)
+  const n = steps.length;
+  steps.forEach((st, j) => {
+    if (j === n - 1) return;
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#7F77DD';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(tx(st.x), ty(st.fx));
+    ctx.lineTo(tx(st.x1), ty(0));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#534AB7';
+    ctx.beginPath();
+    ctx.arc(tx(st.x), ty(st.fx), 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // Tangente final en azul brillante
+  ctx.strokeStyle = '#3395ff';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(tx(last.x), ty(last.fx));
+  ctx.lineTo(tx(last.x1), ty(0));
+  ctx.stroke();
+  ctx.fillStyle = '#0077ff';
+  ctx.beginPath();
+  ctx.arc(tx(last.x), ty(last.fx), 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Raíz final en rojo
+  ctx.fillStyle = '#ff4d6d';
+  ctx.beginPath();
+  ctx.arc(tx(root), ty(0), 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  const label = `Raíz ≈ ${root.toFixed(6)}`;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(tx(root) + 12, ty(0) - 28, 160, 20);
+  ctx.fillStyle = '#ff4d6d';
+  ctx.font = 'bold 12px Space Mono, monospace';
+  ctx.fillText(label, tx(root) + 16, ty(0) - 14);
+}
+
+function readParams() {
+  return {
+    fn: document.getElementById('fn').value,
+    x0: parseFloat(document.getElementById('x0').value),
+    tol: parseFloat(document.getElementById('tol').value),
+    maxIt: parseInt(document.getElementById('maxit').value, 10),
+    spd: parseInt(document.getElementById('spd').value, 10)
+  };
+}
+
+function updateStats(last) {
   document.getElementById('s-iter').textContent = last.i;
   document.getElementById('s-root').textContent = last.x1.toFixed(6);
-  document.getElementById('s-err').textContent  = last.err.toFixed(6);
+  document.getElementById('s-err').textContent = last.err.toFixed(6);
+}
 
-  // Construye la tabla de iteraciones
+function buildTable(steps) {
   const body = document.getElementById('itbody');
   body.innerHTML = '';
 
@@ -207,33 +312,188 @@ function run() {
     `;
     body.appendChild(row);
   });
+}
 
-  // Inicia la animación frame por frame
+function highlightRow(idx, steps) {
+  document.querySelectorAll('.irow:not(.hd)').forEach(r => r.classList.remove('active'));
+  const row = document.getElementById('row-' + idx);
+  if (row) {
+    row.classList.add('active');
+    row.scrollIntoView({ block: 'nearest' });
+  }
+  const s = steps[idx];
+  document.getElementById('step-lbl').textContent =
+    `Iteración ${s.i}: xₙ=${s.x.toFixed(5)}, f(xₙ)=${s.fx.toFixed(5)}, xₙ₊₁=${s.x1.toFixed(6)}, Error=${s.err.toFixed(6)}`;
+}
+
+function stopAnimation() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  stepMode.active = false;
+  document.getElementById('step-controls').hidden = true;
+}
+
+function updateNextButton() {
+  const btn = document.getElementById('btn-next');
+  btn.disabled = stepMode.idx >= stepMode.steps.length - 1;
+}
+
+function executeCalculation() {
+  stopAnimation();
+  const { fn, x0, tol, maxIt } = readParams();
+  const steps = compute(fn, x0, tol, maxIt);
+
+  if (steps.length === 0) return null;
+
+  const last = steps[steps.length - 1];
+  updateStats(last);
+  buildTable(steps);
+  addHistoryEntry({
+    fn,
+    params: { x0, tol, maxIt },
+    root: last.x1,
+    iterations: last.i,
+    error: last.err
+  });
+
+  return { steps, last };
+}
+
+// Función principal que se ejecuta al presionar el botón Animar
+function run() {
+  const result = executeCalculation();
+  if (!result) return;
+
+  const { steps } = result;
+  const { spd } = readParams();
   let idx = 0;
   const delay = Math.round(1200 / spd);
 
+  drawFrame(steps, 0);
+  highlightRow(0, steps);
+
   timer = setInterval(() => {
-
-    // Dibuja el frame actual
-    drawFrame(steps, idx);
-
-    // Actualiza el texto informativo debajo de la gráfica
-    const s = steps[idx];
-    document.getElementById('step-lbl').textContent =
-      `Iteración ${s.i}: xₙ=${s.x.toFixed(5)}, f(xₙ)=${s.fx.toFixed(5)}, xₙ₊₁=${s.x1.toFixed(6)}, Error=${s.err.toFixed(6)}`;
-
-    // Resalta la fila activa en la tabla
-    document.querySelectorAll('.irow:not(.hd)').forEach(r => r.classList.remove('active'));
-    const row = document.getElementById('row-' + idx);
-    if (row) {
-      row.classList.add('active');
-      row.scrollIntoView({ block: 'nearest' });
-    }
-
     idx++;
-
-    // Detiene la animación al llegar a la última iteración
-    if (idx >= steps.length) clearInterval(timer);
-
+    if (idx >= steps.length) {
+      drawStaticFrame(steps);
+      highlightRow(steps.length - 1, steps);
+      clearInterval(timer);
+      timer = null;
+      return;
+    }
+    drawFrame(steps, idx);
+    highlightRow(idx, steps);
   }, delay);
 }
+
+function runStepMode() {
+  const result = executeCalculation();
+  if (!result) return;
+
+  stepMode.active = true;
+  stepMode.idx = 0;
+  stepMode.steps = result.steps;
+
+  document.getElementById('step-controls').hidden = false;
+  updateNextButton();
+  drawFrame(stepMode.steps, 0);
+  highlightRow(0, stepMode.steps);
+}
+
+function nextStep() {
+  if (!stepMode.active || stepMode.idx >= stepMode.steps.length - 1) return;
+
+  stepMode.idx++;
+  const atEnd = stepMode.idx >= stepMode.steps.length - 1;
+
+  if (atEnd) {
+    drawStaticFrame(stepMode.steps);
+  } else {
+    drawFrame(stepMode.steps, stepMode.idx);
+  }
+  highlightRow(stepMode.idx, stepMode.steps);
+  updateNextButton();
+}
+
+function resetStepMode() {
+  if (!stepMode.active || stepMode.steps.length === 0) return;
+
+  stepMode.idx = 0;
+  drawFrame(stepMode.steps, 0);
+  highlightRow(0, stepMode.steps);
+  updateNextButton();
+}
+
+// ——— Historial ———
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    history = raw ? JSON.parse(raw) : [];
+  } catch {
+    history = [];
+  }
+  renderHistory();
+}
+
+function saveHistory() {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+}
+
+function addHistoryEntry({ fn, params, root, iterations, error }) {
+  history.unshift({
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    fn,
+    params,
+    root,
+    iterations,
+    error
+  });
+  if (history.length > 10) history.pop();
+  saveHistory();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (history.length === 0) {
+    list.innerHTML = '<p class="history-empty">Sin ejecuciones previas.</p>';
+    return;
+  }
+
+  list.innerHTML = history.map(entry => `
+    <div class="history-card" data-id="${entry.id}">
+      <div class="history-card-body">
+        <span class="history-fn">${escapeHtml(entry.fn)}</span>
+        <span class="history-meta">Raíz: ${entry.root.toFixed(6)} · ${entry.iterations} iter · err ${entry.error.toFixed(6)}</span>
+      </div>
+      <div class="history-card-actions">
+        <button type="button" class="history-btn" onclick="reuseHistory(${entry.id})" title="Reusar">&#8634;</button>
+        <button type="button" class="history-btn history-btn-del" onclick="deleteHistory(${entry.id})" title="Eliminar">&#10005;</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function reuseHistory(id) {
+  const entry = history.find(h => h.id === id);
+  if (!entry) return;
+
+  document.getElementById('fn').value = entry.fn;
+  document.getElementById('x0').value = entry.params.x0;
+  document.getElementById('tol').value = entry.params.tol;
+  document.getElementById('maxit').value = entry.params.maxIt;
+}
+
+function deleteHistory(id) {
+  history = history.filter(h => h.id !== id);
+  saveHistory();
+  renderHistory();
+}
+
+document.addEventListener('DOMContentLoaded', loadHistory);

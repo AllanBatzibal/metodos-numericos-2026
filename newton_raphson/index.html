@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="newton.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.3/math.min.js"></script>
 </head>
 <body>
 
@@ -15,7 +16,7 @@
     <div class="nav-links">
       <a href="../index.html">Inicio</a>
       <a href="../biseccion/index.html">Bisección</a>
-      <a href="../newton-raphson/index.html" class="active">Newton-Raphson</a>
+      <a href="../newton_raphson/index.html" class="active">Newton-Raphson</a>
     </div>
   </nav>
 
@@ -102,7 +103,14 @@
           <span class="speed-val" id="spdv">5</span>
         </div>
 
-        <button class="btn-run" onclick="run()">&#9654; Animar Newton-Raphson</button>
+        <div class="btn-row">
+          <button class="btn-run" onclick="run()">&#9654; Animar Newton-Raphson</button>
+          <button class="btn-secondary" onclick="runStepMode()">&#9654; Paso a paso</button>
+        </div>
+        <div class="step-controls" id="step-controls" hidden>
+          <button class="btn-secondary" id="btn-next" onclick="nextStep()">&#8594; Siguiente paso</button>
+          <button class="btn-secondary" onclick="resetStepMode()">&#10226; Reiniciar</button>
+        </div>
 
         <div class="stats">
           <div class="stat">
@@ -150,6 +158,16 @@
           <span>Error</span>
         </div>
         <div class="iter-scroll" id="itbody"></div>
+      </div>
+
+      <div class="panel history-panel">
+        <div class="panel-header">
+          <div class="dot"></div>
+          <span class="panel-title">Historial</span>
+        </div>
+        <div class="history-list" id="history-list">
+          <p class="history-empty">Sin ejecuciones previas.</p>
+        </div>
       </div>
 
     </div>
